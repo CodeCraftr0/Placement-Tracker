@@ -28,10 +28,11 @@ connectDB();
 const applicationsRouter = require("./routes/applications");
 app.use("/api/applications", applicationsRouter);
 
+// static frontend
+app.use(express.static(path.join(__dirname, "..", "public")));
 app.get("/", (req, res) => {
-  res.send("🚀 Placement Prep Tracker API is running");
+  res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
-
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

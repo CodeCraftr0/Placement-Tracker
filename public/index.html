@@ -1,0 +1,159 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Placement Prep Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, Arial; max-width: 900px; margin: 40px auto; padding: 0 12px; }
+    h1 { margin-bottom: 8px; }
+    form, table { margin: 16px 0; width: 100%; }
+    input, select, button, textarea { padding: 8px; margin: 6px 4px 6px 0; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    tr:hover { background: #f9f9f9; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Placement Prep Tracker</h1>
+
+  <form id="create-form">
+    <div class="row">
+      <input id="company" placeholder="Company" required />
+      <input id="role" placeholder="Role" required />
+      <select id="status">
+        <option>Applied</option>
+        <option>Shortlisted</option>
+        <option>Interview</option>
+        <option>Rejected</option>
+        <option>Offer</option>
+      </select>
+    </div>
+    <div class="row">
+      <textarea id="notes" placeholder="Notes" rows="2" style="flex:1"></textarea>
+    </div>
+    <button type="submit">Add Application</button>
+  </form>
+
+  <div class="row">
+    <input id="search" placeholder="Search company/role" />
+    <select id="filterStatus">
+      <option value="">All statuses</option>
+      <option>Applied</option>
+      <option>Shortlisted</option>
+      <option>Interview</option>
+      <option>Rejected</option>
+      <option>Offer</option>
+    </select>
+    <button id="refresh">Refresh</button>
+  </div>
+
+  <table id="table">
+    <thead>
+      <tr>
+        <th>Company</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Applied On</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const API = "/api/applications";
+
+    const tbody = document.querySelector("#table tbody");
+    const createForm = document.getElementById("create-form");
+    const company = document.getElementById("company");
+    const role = document.getElementById("role");
+    const status = document.getElementById("status");
+    const notes = document.getElementById("notes");
+    const search = document.getElementById("search");
+    const filterStatus = document.getElementById("filterStatus");
+    const refreshBtn = document.getElementById("refresh");
+
+    async function fetchApps() {
+      const params = new URLSearchParams();
+      if (search.value) params.set("q", search.value);
+      if (filterStatus.value) params.set("status", filterStatus.value);
+      const res = await fetch(`${API}?${params.toString()}`);
+      const data = await res.json();
+      render(data);
+    }
+
+    function render(list) {
+      tbody.innerHTML = "";
+      list.forEach(item => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${item.company}</td>
+          <td>${item.role}</td>
+          <td>
+            <select data-id="${item._id}" class="status">
+              ${["Applied","Shortlisted","Interview","Rejected","Offer"].map(s =>
+                `<option ${s===item.status?"selected":""}>${s}</option>`).join("")}
+            </select>
+          </td>
+          <td>${new Date(item.dateApplied || item.createdAt).toLocaleDateString()}</td>
+          <td>
+            <button data-id="${item._id}" class="delete">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    createForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const payload = {
+        company: company.value.trim(),
+        role: role.value.trim(),
+        status: status.value,
+        notes: notes.value.trim()
+      };
+      const res = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        company.value = role.value = notes.value = "";
+        status.value = "Applied";
+        fetchApps();
+      } else {
+        alert("Failed to add");
+      }
+    });
+
+    tbody.addEventListener("change", async (e) => {
+      if (e.target.classList.contains("status")) {
+        const id = e.target.getAttribute("data-id");
+        const res = await fetch(`${API}/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: e.target.value })
+        });
+        if (!res.ok) alert("Failed to update status");
+      }
+    });
+
+    tbody.addEventListener("click", async (e) => {
+      if (e.target.classList.contains("delete")) {
+        const id = e.target.getAttribute("data-id");
+        if (!confirm("Delete this application?")) return;
+        const res = await fetch(`${API}/${id}`, { method: "DELETE" });
+        if (res.ok) fetchApps(); else alert("Failed to delete");
+      }
+    });
+
+    search.addEventListener("input", fetchApps);
+    filterStatus.addEventListener("change", fetchApps);
+    refreshBtn.addEventListener("click", fetchApps);
+
+    fetchApps(); // initial load
+  </script>
+</body>
+</html>
